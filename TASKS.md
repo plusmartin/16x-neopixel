@@ -17,7 +17,7 @@
 | [x] | Define constants in configs.h | S | GPIO 5/18/19/21, 4 parallel pins |
 | [x] | Write xy() coordinate mapping | M | Serpentine per panel, panel chain order |
 | [x] | Write testCrosshair() | S | Red H-line, green V-line, blue origin dot |
-| [!] | Flash and validate xy() mapping on hardware | S | Blocked: hardware not assembled |
+| [~] | Flash and validate xy() mapping on hardware | M | Board flashed, dots correct, green line interlaced — serpentine bug open |
 | [ ] | Power injection wiring (every 256 LEDs) | M | 4 injection points, 1000µF cap each |
 
 ## Milestone: v0.2 — Display Primitives
@@ -60,4 +60,4 @@
 
 | Task | Reason | Resolution |
 |------|--------|------------|
-| Hardware validation | Panels, PSU, wiring not yet assembled | Assemble hardware, flash crosshair test |
+| xy() serpentine | lx=0 maps to col 16 and col 23 alternately for green line at x=16 | Empirically test pixel indices 64 and 127 of panel 1 to confirm physical serpentine direction |
