@@ -7,7 +7,9 @@
 #include "configs.h"
 
 // ── shared state (defined in main.cpp) ───────────────────────────────────────
-enum Mode { M_PLASMA, M_RAINBOW, M_LIFE, M_SCROLL, M_WIPE, M_SPARKLE, M_BREATHE };
+enum Mode { M_PLASMA, M_RAINBOW, M_LIFE, M_SCROLL, M_WIPE, M_SPARKLE, M_BREATHE,
+            M_FIRE, M_MATRIX_RAIN, M_STARFIELD, M_METEOR,
+            M_CLOCK, M_AUTO };
 extern volatile Mode currentMode;
 extern char          scrollMsg[128];
 extern uint32_t      scrollColorHex;
@@ -41,8 +43,14 @@ static const char HTML[] PROGMEM = R"rawliteral(
 
 <h2>Animation</h2>
 <div class="grid">
+  <button onclick="mode('auto')" style="background:#f80;color:#000">Auto</button>
+  <button onclick="mode('clock')">Clock</button>
   <button onclick="mode('plasma')">Plasma</button>
   <button onclick="mode('rainbow')">Rainbow</button>
+  <button onclick="mode('fire')">Fire</button>
+  <button onclick="mode('matrix')">Matrix Rain</button>
+  <button onclick="mode('starfield')">Starfield</button>
+  <button onclick="mode('meteor')">Meteors</button>
   <button onclick="mode('life')">Game of Life</button>
   <button onclick="mode('wipe')">Wipe</button>
   <button onclick="mode('sparkle')">Sparkle</button>
@@ -104,12 +112,18 @@ static void handleRoot()
 static void handleMode()
 {
   String name = server.arg("name");
-  if      (name == "plasma")  currentMode = M_PLASMA;
-  else if (name == "rainbow") currentMode = M_RAINBOW;
-  else if (name == "life")    currentMode = M_LIFE;
-  else if (name == "wipe")    currentMode = M_WIPE;
-  else if (name == "sparkle") currentMode = M_SPARKLE;
-  else if (name == "breathe") currentMode = M_BREATHE;
+  if      (name == "auto")     currentMode = M_AUTO;
+  else if (name == "clock")    currentMode = M_CLOCK;
+  else if (name == "plasma")   currentMode = M_PLASMA;
+  else if (name == "rainbow")  currentMode = M_RAINBOW;
+  else if (name == "life")     currentMode = M_LIFE;
+  else if (name == "wipe")     currentMode = M_WIPE;
+  else if (name == "sparkle")  currentMode = M_SPARKLE;
+  else if (name == "breathe")  currentMode = M_BREATHE;
+  else if (name == "fire")      currentMode = M_FIRE;
+  else if (name == "matrix")    currentMode = M_MATRIX_RAIN;
+  else if (name == "starfield") currentMode = M_STARFIELD;
+  else if (name == "meteor")    currentMode = M_METEOR;
   else { server.send(400, "text/plain", "unknown mode"); return; }
   server.send(200, "text/plain", "ok");
 }

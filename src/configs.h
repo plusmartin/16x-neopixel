@@ -25,10 +25,16 @@
 // ----- FastLED -----
 #define LED_TYPE       WS2812B
 #define COLOR_ORDER    GRB
-#define BRIGHTNESS     40     // 0-255, keep low during dev to limit current draw
+#define BRIGHTNESS     80
+
+// ── Version ──────────────────────────────────────────────────────────────────
+#define FW_VERSION "1.1.0"
 
 // ── OTA ──────────────────────────────────────────────────────────────────────
-// Upload firmware.bin to a GitHub Release on this repo, then trigger via web UI.
 #define OTA_URL "https://github.com/plusmartin/16x-neopixel/releases/latest/download/firmware.bin"
+
+// ── Time ─────────────────────────────────────────────────────────────────────
+// UTC offset in seconds. Mexico City = -6*3600 = -21600
+#define TIMEZONE_OFFSET  (-6L * 3600L)
 
 #endif

@@ -44,13 +44,12 @@
 | [x] | WiFi AP/STA connection (2 SSIDs + AP fallback) | M | main.cpp |
 | [x] | HTTP API: mode, text, brightness | L | api.h |
 | [x] | Web UI | L | api.h PROGMEM HTML |
-| [!] | OTA firmware update | M | **BLOCKED** — private GitHub repo, needs PAT auth header |
+| [x] | OTA firmware update | M | HTTPUpdate + redirect resolver; repo público en GitHub |
 
 ## Blocked
 
 | Task | Reason | Resolution |
 |------|--------|------------|
-| OTA from GitHub Releases | Repo is private → 404 without auth on firmware.bin | Add GitHub PAT to secrets.h; inject `Authorization: token <PAT>` via `esp_https_ota_config_t.http_client_init_cb` in OTAClient.cpp |
 
 ## Backlog
 

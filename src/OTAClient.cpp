@@ -1,46 +1,56 @@
 #include <Arduino.h>
-#include <esp_https_ota.h>
-#include <esp_crt_bundle.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
 #include "OTAClient.h"
+
+// Follow redirects and return the final URL.
+static String resolveUrl(const char* url)
+{
+  String current = url;
+  for (int i = 0; i < 5; i++) {
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    http.begin(client, current);
+    http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+    int code = http.sendRequest("HEAD");
+    String location = http.getLocation();
+    http.end();
+    if ((code == 301 || code == 302 || code == 307 || code == 308) && location.length()) {
+      Serial0.printf("[OTA] Redirect → %s\n", location.c_str());
+      current = location;
+    } else {
+      break;
+    }
+  }
+  return current;
+}
 
 void otaUpdate(const char* url)
 {
   Serial0.printf("[OTA] Fetching %s\n", url);
 
-  esp_http_client_config_t http_cfg = {};
-  http_cfg.url                      = url;
-  http_cfg.crt_bundle_attach        = arduino_esp_crt_bundle_attach;
-  http_cfg.max_redirection_count    = 5;
-  http_cfg.timeout_ms               = 30000;
-  http_cfg.keep_alive_enable        = true;
+  String finalUrl = resolveUrl(url);
+  Serial0.printf("[OTA] Final URL: %s\n", finalUrl.c_str());
 
-  esp_https_ota_config_t ota_cfg = {};
-  ota_cfg.http_config = &http_cfg;
+  WiFiClientSecure client;
+  client.setInsecure();
+  httpUpdate.rebootOnUpdate(true);
 
-  esp_https_ota_handle_t handle = nullptr;
-  esp_err_t err = esp_https_ota_begin(&ota_cfg, &handle);
-  if (err != ESP_OK) {
-    Serial0.printf("[OTA] Begin failed: %s\n", esp_err_to_name(err));
-    return;
-  }
+  t_httpUpdate_return ret = httpUpdate.update(client, finalUrl);
 
-  while (true) {
-    err = esp_https_ota_perform(handle);
-    if (err != ESP_ERR_HTTPS_OTA_IN_PROGRESS) break;
-    Serial0.printf("[OTA] Written: %d bytes\n", esp_https_ota_get_image_len_read(handle));
-  }
-
-  if (err != ESP_OK) {
-    Serial0.printf("[OTA] Failed: %s\n", esp_err_to_name(err));
-    esp_https_ota_abort(handle);
-    return;
-  }
-
-  if (esp_https_ota_finish(handle) == ESP_OK) {
-    Serial0.println("[OTA] Success — rebooting.");
-    delay(500);
-    esp_restart();
-  } else {
-    Serial0.println("[OTA] Finish failed.");
+  switch (ret) {
+    case HTTP_UPDATE_OK:
+      Serial0.println("[OTA] Success — rebooting.");
+      break;
+    case HTTP_UPDATE_FAILED:
+      Serial0.printf("[OTA] Failed (%d): %s\n",
+                     httpUpdate.getLastError(),
+                     httpUpdate.getLastErrorString().c_str());
+      break;
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial0.println("[OTA] No update available.");
+      break;
   }
 }

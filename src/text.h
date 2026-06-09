@@ -124,6 +124,16 @@ inline void drawChar(int16_t x, uint8_t y, char c, CRGB color)
   }
 }
 
+// Draw a string centered horizontally at row y.
+inline void drawTextCentered(const char* str, uint8_t y, CRGB color)
+{
+  uint8_t  len   = strlen(str);
+  int16_t  width = len * CHAR_STRIDE - CHAR_GAP;
+  int16_t  x     = (MATRIX_W - width) / 2;
+  for (uint8_t i = 0; i < len; i++)
+    drawChar(x + i * CHAR_STRIDE, y, str[i], color);
+}
+
 // Non-blocking horizontal text scroller.
 // y        — top pixel row of the text (default centres on a 32-px display).
 // ms_per_px — milliseconds between each 1-pixel scroll step.
