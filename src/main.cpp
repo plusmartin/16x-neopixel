@@ -12,6 +12,8 @@
 #include "life.h"
 #include "secrets.h"
 #include "weather.h"
+#include "clocks.h"
+#include "gif.h"
 #include "api.h"
 
 // ── global state (extern'd by api.h) ─────────────────────────────────────────
@@ -100,35 +102,52 @@ static void loopAuto()
   static bool     textPhase  = true;
   static uint8_t  animIdx    = 0;
   static uint8_t  animHue    = 0;
+  static uint8_t  clockIdx   = 0;
 
   uint32_t now = millis();
 
   if (textPhase && now - phaseStart >= PHASE_MS) {
     textPhase  = false;
     phaseStart = now;
-    animIdx    = random8(10);
+    int gc = gifCount();
+    animIdx    = random8(gc > 0 ? 11 : 10);
     animHue    = random8();
     weatherUpdate();
   } else if (!textPhase && now - phaseStart >= PHASE_MS) {
+    gifStop();
     textPhase  = true;
     phaseStart = now;
+    clockIdx   = (clockIdx + 1) % 7;
     timeClient.update();
   }
 
+  int ch = timeClient.getHours();
+  int cm = timeClient.getMinutes();
+  int cs = timeClient.getSeconds();
+
   if (textPhase) {
-    drawClockStatic();
+    switch (clockIdx) {
+      case 0: drawClockStatic();                    break;
+      case 1: animClockAnalog(ch, cm, cs);          break;
+      case 2: animClockArcs(ch, cm, cs);            break;
+      case 3: animClockBinary(ch, cm);              break;
+      case 4: animClockBars(ch, cm);                break;
+      case 5: animClockPong(ch, cm);                break;
+      case 6: animClockColor(ch, cm);               break;
+    }
   } else {
     switch (animIdx) {
-      case 0: animFire();                  break;
-      case 1: animMatrixRain();            break;
-      case 2: animStarfield();             break;
-      case 3: animMeteorShower();          break;
-      case 4: animPlasma();                break;
-      case 5: animRainbow();               break;
-      case 6: animWipe();                  break;
-      case 7: animSparkle();               break;
-      case 8: animLife();                  break;
-      case 9: animBreathe(CHSV(animHue, 220, 255));   break;
+      case 0: animFire();                           break;
+      case 1: animMatrixRain();                     break;
+      case 2: animStarfield();                      break;
+      case 3: animMeteorShower();                   break;
+      case 4: animPlasma();                         break;
+      case 5: animRainbow();                        break;
+      case 6: animWipe();                           break;
+      case 7: animSparkle();                        break;
+      case 8: animLife();                           break;
+      case 9: animBreathe(CHSV(animHue, 220, 255)); break;
+      case 10: animGif();                            break;
     }
   }
 }
@@ -148,16 +167,20 @@ void setup()
   FastLED.setBrightness(BRIGHTNESS);
   clear(); show();
   Serial0.println("FastLED OK");
+  calLoad();
 
   wifiConnect();
   Serial0.println("WiFi done");
 
   random16_set_seed(esp_random()); // hardware RNG → animations vary each boot
 
+  gifInit();
+
   if (WiFi.status() == WL_CONNECTED) {
     timeClient.begin();
     timeClient.update();
     weatherUpdate();
+    for (int i = 0; i < GIF_BOOT_FETCH; i++) gifFetch();
   }
 
   apiBegin();
@@ -173,6 +196,15 @@ void loop()
                 ? "STA " + WiFi.localIP().toString()
                 : "AP  " + WiFi.softAPIP().toString();
     Serial0.println("[v" FW_VERSION "] " + ip);
+  }
+
+  static uint32_t lastGifFetch = 0;
+  static bool     hasGifs      = false;
+  uint32_t gifInterval = hasGifs ? GIF_FETCH_INTERVAL : 120000UL;
+  if (millis() - lastGifFetch > gifInterval) {
+    lastGifFetch = millis();
+    if (gifFetch()) hasGifs = true;
+    else if (!hasGifs) hasGifs = (gifCount() > 0);
   }
 
   apiLoop();
@@ -193,6 +225,9 @@ void loop()
     case M_MATRIX_RAIN: animMatrixRain();                                  break;
     case M_STARFIELD:   animStarfield();                                   break;
     case M_METEOR:      animMeteorShower();                                break;
+    case M_CAL_WHITE:
+      fill(CRGB(80, 80, 80)); show(); delay(100);
+      break;
     case M_SCROLL:
       scrollText(scrollMsg,
                  CRGB((scrollColorHex>>16)&0xFF,

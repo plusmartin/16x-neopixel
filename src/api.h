@@ -9,7 +9,7 @@
 // ── shared state (defined in main.cpp) ───────────────────────────────────────
 enum Mode { M_PLASMA, M_RAINBOW, M_LIFE, M_SCROLL, M_WIPE, M_SPARKLE, M_BREATHE,
             M_FIRE, M_MATRIX_RAIN, M_STARFIELD, M_METEOR,
-            M_CLOCK, M_AUTO };
+            M_CLOCK, M_AUTO, M_CAL_WHITE };
 extern volatile Mode currentMode;
 extern char          scrollMsg[128];
 extern uint32_t      scrollColorHex;
@@ -150,6 +150,29 @@ static void handleOTA()
   otaUpdate(OTA_URL);
 }
 
+static void handleCal()
+{
+  if (server.hasArg("panel")) {
+    uint8_t panel = server.arg("panel").toInt();
+    uint8_t r = server.hasArg("r") ? server.arg("r").toInt() : g_panelCal[panel][0];
+    uint8_t g = server.hasArg("g") ? server.arg("g").toInt() : g_panelCal[panel][1];
+    uint8_t b = server.hasArg("b") ? server.arg("b").toInt() : g_panelCal[panel][2];
+    calSet(panel, r, g, b);
+  }
+  if (server.hasArg("white")) currentMode = M_CAL_WHITE;
+  String html = "<pre>Panel calibration (255=no correction)\n\n";
+  for (int i = 0; i < 16; i++) {
+    html += "panel " + String(i) + ":  R=" + g_panelCal[i][0] +
+            "  G=" + g_panelCal[i][1] + "  B=" + g_panelCal[i][2];
+    if (g_panelCal[i][0] != 255 || g_panelCal[i][1] != 255 || g_panelCal[i][2] != 255)
+      html += "  *";
+    html += "\n";
+  }
+  html += "\nUsage: /api/cal?panel=13&r=220&g=255&b=255&white=1\n"
+          "Add white=1 to fill display with dim white for comparison.\n</pre>";
+  server.send(200, "text/html", html);
+}
+
 // ── public interface ──────────────────────────────────────────────────────────
 inline void apiBegin()
 {
@@ -158,6 +181,7 @@ inline void apiBegin()
   server.on("/api/text",        handleText);
   server.on("/api/brightness",  handleBrightness);
   server.on("/api/ota",         handleOTA);
+  server.on("/api/cal",         handleCal);
   server.begin();
   Serial0.println("HTTP server started");
 }

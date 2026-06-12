@@ -3,6 +3,7 @@
 
 #include <FastLED.h>
 #include "configs.h"
+#include "calibration.h"
 
 // Front buffer — written to FastLED on show().
 extern CRGB leds[NUM_LEDS];
@@ -74,6 +75,7 @@ inline void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, CRGB color)
 inline void show()
 {
   memcpy(leds, backbuf, sizeof(leds));
+  calApply(leds);
   FastLED.show();
 }
 

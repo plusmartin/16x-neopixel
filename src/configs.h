@@ -37,4 +37,9 @@
 // UTC offset in seconds. Mexico City = -6*3600 = -21600
 #define TIMEZONE_OFFSET  (-6L * 3600L)
 
+// ── GIF worker ───────────────────────────────────────────────────────────────
+#define GIF_WORKER_URL     "https://32x32display.martin-garwil.workers.dev/gif"
+#define GIF_BOOT_FETCH     4                          // GIFs downloaded at boot
+#define GIF_FETCH_INTERVAL (3600UL * 1000UL)          // refresh one slot per hour
+
 #endif
