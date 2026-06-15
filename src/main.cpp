@@ -1,4 +1,7 @@
 // 16x NeoPixel 4x4 matrix display — @plusmartin martin.garwil@gmail.com
+// External services: NTP pool.ntp.org · OpenWeatherMap api.openweathermap.org
+//   Cloudflare Worker /gif + /tiktok (32x32display.martin-garwil.workers.dev)
+//   OTA: github.com/plusmartin/16x-neopixel/releases (firmware.bin)
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -13,8 +16,10 @@
 #include "secrets.h"
 #include "weather.h"
 #include "clocks.h"
+#include "animations2.h"
 #include "gif.h"
 #include "api.h"
+#include "tiktok.h"
 
 // ── global state (extern'd by api.h) ─────────────────────────────────────────
 CRGB             leds[NUM_LEDS];
@@ -93,8 +98,16 @@ static void drawClockStatic()
   show();
 }
 
+// ── Night mode brightness ─────────────────────────────────────────────────────
+static void updateBrightness()
+{
+  int h = timeClient.getHours();
+  bool night = (h >= 22 || h < 6);
+  FastLED.setBrightness(night ? 3 : BRIGHTNESS);
+}
+
 // ── M_AUTO loop ───────────────────────────────────────────────────────────────
-static const uint32_t PHASE_MS = 10000;
+static const uint32_t PHASE_MS = 20000;
 
 static void loopAuto()
 {
@@ -107,17 +120,28 @@ static void loopAuto()
   uint32_t now = millis();
 
   if (textPhase && now - phaseStart >= PHASE_MS) {
+    g_ttNewData = false;           // done showing TikTok phase (if it was one)
     textPhase  = false;
     phaseStart = now;
+    static const char* ANIM_NAMES[] = {
+      "Fire","MatrixRain","Starfield","MeteorShower","Plasma",
+      "Rainbow","Wipe","Sparkle","Life","Breathe","GIF",
+      "Balls","Ripple","Fireworks","Twinkle","Kaleidoscope",
+      "WaveInterference","Tunnel","DNA","Pendulum","Cube",
+      "Lissajous","Glitch","Aurora","Spiral","Pulse",
+      "ColorNoise","Lightning","Snow","CheckerWave","Smoke",
+      "Langton","PacDots"
+    };
     int gc = gifCount();
-    animIdx    = random8(gc > 0 ? 11 : 10);
+    animIdx = random8(gc > 0 ? 33 : 32);
+    Serial0.printf("[anim] %d: %s\n", animIdx, ANIM_NAMES[animIdx]);
     animHue    = random8();
     weatherUpdate();
   } else if (!textPhase && now - phaseStart >= PHASE_MS) {
     gifStop();
     textPhase  = true;
     phaseStart = now;
-    clockIdx   = (clockIdx + 1) % 7;
+    if (!g_ttNewData) clockIdx = (clockIdx + 1) % 7;  // don't advance clock for TikTok phase
     timeClient.update();
   }
 
@@ -126,14 +150,19 @@ static void loopAuto()
   int cs = timeClient.getSeconds();
 
   if (textPhase) {
-    switch (clockIdx) {
-      case 0: drawClockStatic();                    break;
-      case 1: animClockAnalog(ch, cm, cs);          break;
-      case 2: animClockArcs(ch, cm, cs);            break;
-      case 3: animClockBinary(ch, cm);              break;
-      case 4: animClockBars(ch, cm);                break;
-      case 5: animClockPong(ch, cm);                break;
-      case 6: animClockColor(ch, cm);               break;
+    if (g_ttNewData) {
+      // TikTok update — scroll in TikTok red until phase ends
+      scrollText(g_ttMsg, CRGB(0xFF, 0x00, 0x50), (MATRIX_H - 7) / 2, 35);
+    } else {
+      switch (clockIdx) {
+        case 0: drawClockStatic();                    break;
+        case 1: animClockAnalog(ch, cm, cs);          break;
+        case 2: animClockArcs(ch, cm, cs);            break;
+        case 3: animClockBinary(ch, cm);              break;
+        case 4: animClockBars(ch, cm);                break;
+        case 5: animClockPong(ch, cm);                break;
+        case 6: animClockColor(ch, cm);               break;
+      }
     }
   } else {
     switch (animIdx) {
@@ -146,8 +175,30 @@ static void loopAuto()
       case 6: animWipe();                           break;
       case 7: animSparkle();                        break;
       case 8: animLife();                           break;
-      case 9: animBreathe(CHSV(animHue, 220, 255)); break;
-      case 10: animGif();                            break;
+      case  9: animBreathe(CHSV(animHue, 220, 255)); break;
+      case 10: animGif();              break;
+      case 11: animBalls();            break;
+      case 12: animRipple();           break;
+      case 13: animFireworks();        break;
+      case 14: animTwinkle();          break;
+      case 15: animKaleidoscope();     break;
+      case 16: animWaveInterference(); break;
+      case 17: animTunnel();           break;
+      case 18: animDNA();              break;
+      case 19: animPendulum();         break;
+      case 20: animCube();             break;
+      case 21: animLissajous();        break;
+      case 22: animGlitch();           break;
+      case 23: animAurora();           break;
+      case 24: animSpiral();           break;
+      case 25: animPulse();            break;
+      case 26: animColorNoise();       break;
+      case 27: animLightning();        break;
+      case 28: animSnow();             break;
+      case 29: animCheckerWave();      break;
+      case 30: animSmoke();            break;
+      case 31: animLangton();          break;
+      case 32: animPacDots();          break;
     }
   }
 }
@@ -180,6 +231,7 @@ void setup()
     timeClient.begin();
     timeClient.update();
     weatherUpdate();
+    tiktokCheck();
     for (int i = 0; i < GIF_BOOT_FETCH; i++) gifFetch();
   }
 
@@ -189,6 +241,9 @@ void setup()
 // ── loop ──────────────────────────────────────────────────────────────────────
 void loop()
 {
+  static uint32_t lastBriCheck = 0;
+  if (millis() - lastBriCheck > 30000) { lastBriCheck = millis(); updateBrightness(); }
+
   static uint32_t lastIPPrint = 0;
   if (millis() - lastIPPrint > 10000) {
     lastIPPrint = millis();
@@ -197,6 +252,11 @@ void loop()
                 : "AP  " + WiFi.softAPIP().toString();
     Serial0.println("[v" FW_VERSION "] " + ip);
   }
+
+  static uint32_t lastTikTok        = 0;
+  static uint32_t lastTikTokDisplay = 0;
+  if (millis() - lastTikTok > TIKTOK_CHECK_INTERVAL) { lastTikTok = millis(); tiktokCheck(); }
+  if (millis() - lastTikTokDisplay > 3600000UL)      { lastTikTokDisplay = millis(); tiktokForceDisplay(); }
 
   static uint32_t lastGifFetch = 0;
   static bool     hasGifs      = false;

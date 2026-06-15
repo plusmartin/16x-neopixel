@@ -28,18 +28,34 @@
 #define BRIGHTNESS     80
 
 // ── Version ──────────────────────────────────────────────────────────────────
-#define FW_VERSION "1.1.0"
+// Increment before each OTA release. Device prints this on serial at boot and
+// every 10 s. Check serial or /api/mode response to confirm the version running.
+#define FW_VERSION "1.3.0"
 
 // ── OTA ──────────────────────────────────────────────────────────────────────
+// GitHub Releases asset. Upload firmware.bin to a new release to deploy OTA.
+// Trigger via web UI or GET /api/ota. Device pulls HTTPS, verifies, reboots.
 #define OTA_URL "https://github.com/plusmartin/16x-neopixel/releases/latest/download/firmware.bin"
 
 // ── Time ─────────────────────────────────────────────────────────────────────
-// UTC offset in seconds. Mexico City = -6*3600 = -21600
+// NTP server: pool.ntp.org (public, no key needed).
+// UTC offset in seconds. Mexico City = UTC-6 = -21600.
 #define TIMEZONE_OFFSET  (-6L * 3600L)
 
 // ── GIF worker ───────────────────────────────────────────────────────────────
+// Cloudflare Worker proxies GIPHY trending GIFs.
+// Worker source: worker/worker.js — deploy to your own Worker and update URL.
+// Secret GIPHY_KEY must be set in the Worker (wrangler secret put GIPHY_KEY).
+// GIPHY free tier: https://developers.giphy.com
 #define GIF_WORKER_URL     "https://32x32display.martin-garwil.workers.dev/gif"
 #define GIF_BOOT_FETCH     4                          // GIFs downloaded at boot
 #define GIF_FETCH_INTERVAL (3600UL * 1000UL)          // refresh one slot per hour
+
+// ── TikTok stats ─────────────────────────────────────────────────────────────
+// Same Cloudflare Worker, /tiktok endpoint scrapes @odile.juarez profile.
+// No API key needed — scrapes public page. May break if TikTok blocks scraping.
+// On failure the device keeps last known values and retries next interval.
+#define TIKTOK_WORKER_URL     "https://32x32display.martin-garwil.workers.dev/tiktok"
+#define TIKTOK_CHECK_INTERVAL (20UL * 60UL * 1000UL)  // 20 minutes
 
 #endif

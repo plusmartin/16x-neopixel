@@ -76,6 +76,23 @@ inline void show()
 {
   memcpy(leds, backbuf, sizeof(leds));
   calApply(leds);
+
+  // Power budget: total channel sum must not exceed all LEDs at white 180/255.
+  // If over budget, scale every LED down proportionally so bright pixels stay
+  // bright relative to each other but the total draw is within limits.
+  static const uint32_t POWER_BUDGET = (uint32_t)NUM_LEDS * 3 * 70;
+  uint32_t total = 0;
+  for (int i = 0; i < NUM_LEDS; i++)
+    total += leds[i].r + leds[i].g + leds[i].b;
+  if (total > POWER_BUDGET) {
+    uint8_t scale = (uint8_t)((POWER_BUDGET * 255UL) / total);
+    for (int i = 0; i < NUM_LEDS; i++) {
+      leds[i].r = scale8(leds[i].r, scale);
+      leds[i].g = scale8(leds[i].g, scale);
+      leds[i].b = scale8(leds[i].b, scale);
+    }
+  }
+
   FastLED.show();
 }
 

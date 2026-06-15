@@ -28,6 +28,9 @@ Panel wiring: each data pin drives a chain of 4 panels (256 LEDs). Panels are or
 ### Text scroll
 - Arbitrary message, RGB color, adjustable speed via web UI
 
+### TikTok stats
+Fetches follower and like count for @odile.juarez every 20 minutes via Cloudflare Worker. When either value changes the new count scrolls across the display in TikTok red during the next clock phase.
+
 ### Web UI & API
 Served at `http://<device-ip>/` — no app required.
 
@@ -48,14 +51,18 @@ cp src/secrets.h.example src/secrets.h
 
 `src/secrets.h` is gitignored and never committed.
 
-### 2. GIF Worker (optional)
+### 2. Cloudflare Worker (optional)
 
-Animated GIFs are fetched from a Cloudflare Worker that proxies the GIPHY API. To set up your own:
+The Worker at `worker/worker.js` handles two endpoints:
+- `/gif` — proxies GIPHY trending GIFs (requires `GIPHY_KEY` secret)
+- `/tiktok` — scrapes @odile.juarez follower/like counts
+
+To deploy:
 
 1. Create a free account at [cloudflare.com](https://cloudflare.com) and [giphy.com](https://developers.giphy.com)
-2. Create a Cloudflare Worker with the code in [`worker/gif-worker.js`](worker/gif-worker.js)
+2. Create a Cloudflare Worker and paste the contents of `worker/worker.js`
 3. Add your GIPHY API key as a Worker secret named `GIPHY_KEY`
-4. Update `GIF_WORKER_URL` in `src/configs.h` with your Worker URL
+4. Update `GIF_WORKER_URL` and `TIKTOK_WORKER_URL` in `src/configs.h` with your Worker URL
 
 The GIPHY API key lives only in Cloudflare — never in this repo.
 
@@ -103,17 +110,44 @@ http://<ip>/api/mode?name=auto
 
 Corrections are stored in NVS and applied automatically on every frame across all brightness levels.
 
+## External services
+
+All network calls made by the device at runtime:
+
+| Service | URL / host | Credential | Purpose |
+|---------|-----------|-----------|---------|
+| NTP | `pool.ntp.org` | none | Time sync on boot and every clock phase |
+| OpenWeatherMap | `api.openweathermap.org` | `WEATHER_API_KEY` in `secrets.h` | Temperature shown on clock face |
+| Cloudflare Worker `/gif` | `32x32display.martin-garwil.workers.dev` | Worker secret `GIPHY_KEY` | Proxy for GIPHY trending GIFs |
+| Cloudflare Worker `/tiktok` | `32x32display.martin-garwil.workers.dev` | none | TikTok @odile.juarez follower/like count |
+| GitHub Releases | `github.com/plusmartin/16x-neopixel` | none | OTA firmware binary (`firmware.bin`) |
+
+No credentials are stored in this repo. All secrets live in `src/secrets.h` (gitignored) or Cloudflare Worker secrets.
+
+## OTA firmware updates
+
+The device is identified by its firmware version (`FW_VERSION` in `src/configs.h`). The version is printed to serial every 10 seconds and shown in the web UI. To deploy a new version without USB:
+
+1. Bump `FW_VERSION` in `src/configs.h` before building
+2. Build: `pio run`
+3. Upload `.pio/build/esp32dev/firmware.bin` to a GitHub Release as `firmware.bin`
+4. Trigger OTA via `GET http://<device-ip>/api/ota` or the web UI button
+
+Current deployed version: **1.3.0**
+
 ## Configuration
 
 Key constants in `src/configs.h`:
 
 | Constant | Default | Description |
 |----------|---------|-------------|
-| `BRIGHTNESS` | 80 | Default LED brightness (0–255) |
+| `FW_VERSION` | `"1.3.0"` | Firmware version — bump before each OTA release |
+| `BRIGHTNESS` | 80 | Default LED brightness (0–255); night mode forces 3 between 22:00–06:00 |
 | `TIMEZONE_OFFSET` | -21600 | UTC offset in seconds (Mexico City = UTC-6) |
 | `GIF_BOOT_FETCH` | 4 | GIFs downloaded at boot |
 | `GIF_FETCH_INTERVAL` | 3600000 | GIF refresh interval ms (1 hour) |
-| `GIF_MAX_BYTES` | 150000 | Max GIF file size (150 KB) |
+| `TIKTOK_CHECK_INTERVAL` | 1200000 | TikTok stats poll interval ms (20 min) |
+| `POWER_BUDGET` | NUM_LEDS×3×100 | Max total LED channel sum (set in `display.h show()`) |
 
 ## Project structure
 
@@ -130,7 +164,10 @@ src/
   text.h            — font renderer and scrolling text
   gif.h             — AnimatedGIF player (LittleFS + GIPHY worker)
   weather.h         — OpenWeatherMap temperature fetch
+  tiktok.h          — TikTok follower/like fetch, triggers scroll on change
   api.h             — WebServer routes and HTML UI
   OTAClient.h       — HTTPS OTA firmware update
+worker/
+  worker.js         — Cloudflare Worker: /gif (GIPHY proxy) + /tiktok (TikTok stats)
 partitions.csv      — 16 MB flash layout (3 MB app×2, ~10 MB LittleFS)
 ```
